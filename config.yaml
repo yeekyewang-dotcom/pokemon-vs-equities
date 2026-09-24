@@ -1,0 +1,15 @@
+# ALL ASSUMPTIONS LIVE HERE. Values marked [placeholder] need a documented source before freeze.
+# Dry-run mode (frozen: false) writes to data_dev/. Set frozen: true, commit, tag v1.0-frozen to start the live run.
+frozen: false
+start_date: "2026-10-01"
+capital_gbp: 10000
+weights: {momentum: 0.30, trend: 0.20, volatility: 0.20, liquidity_cost: 0.25, regime: 0.05}   # [placeholder]
+rules: {buy_score: 70, sell_score: 40, max_positions: 8, max_position_pct: 0.12, min_cash_pct: 0.05, edge_multiple: 1.5, min_hold_days: {equity: 1, card: 14}}   # [placeholder]
+lookbacks: {equity: [30, 90], card: [7, 14]}   # [short, long] days [placeholder]
+costs:   # fractions of value; add source_url + retrieved_on before freeze [placeholder]
+  equity: {buy_fee: 0.0, sell_fee: 0.0, half_spread: 0.001, fx_fee: 0.0075, fixed_gbp: 0.0}
+  card:   {buy_fee: 0.0, sell_fee: 0.1275, half_spread: 0.05, fx_fee: 0.0, fixed_gbp: 1.5}   # sell_fee = marketplace+payment; fixed = postage
+tax: {jurisdiction: UK, cgt_exempt_gbp: 3000, cgt_rate: 0.18, cards_tax_treatment: taxable}   # 2026/27 basic-rate CGT; verify on gov.uk. Alt: chattel_exempt
+equities: [AAPL, MSFT, NVDA, JPM, JNJ, XOM, PG, KO, HD, CAT]   # placeholder universe: choose by a written rule before freeze
+benchmarks: {"S&P 500 (SPY)": SPY, "Nasdaq-100 (QQQ)": QQQ, "Dow (DIA)": DIA, "Russell 2000 (IWM)": IWM}   # total-return ETF proxies
+cards: [base1-4, base1-2, base1-15, base1-58, neo1-9, sv3pt5-199, sv3pt5-151, swsh7-215]   # pokemontcg.io ids: VERIFY; unknown ids are logged as gaps
