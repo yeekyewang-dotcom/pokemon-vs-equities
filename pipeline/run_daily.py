@@ -29,7 +29,7 @@ def main(root=".", src=live, today=None):
         if c:
             px[cid] = c["price_usd"] * fx
             store.append(P("prices.jsonl"), {"date": today, "asset": cid, "market": "card", "price": c["price_usd"], "ccy": "USD", "price_type": c["price_type"], "variant": c["variant"], "source": c["source"], "as_of": c["as_of"], "retrieved_at": now.isoformat()})
-        else: gaps.append(f"no data: {cid}")
+        else: gaps.append(f"no data: {cid} ({getattr(src, 'LAST_ERROR', '')})")
     sp = P("state.json")
     if os.path.exists(sp): st = json.load(open(sp))
     else: st = {"pf": {}, "pending": [], "bench0": {}, "last_px": {}, "start": today}
@@ -38,7 +38,7 @@ def main(root=".", src=live, today=None):
     if not st["pf"]:  # first run: buy-and-hold benchmarks buy the whole universe equally; index start levels recorded
         for k, m, assets in (("bh_card", "card", cfg["cards"]), ("bh_equity", "equity", cfg["equities"])):
             for a in assets:
-                if a in px: pf[k].buy(a, m, (cap / len(assets) - cfg["costs"][m]["fixed_gbp"]) / (px[a] * (1 + pf[k].rate(m, "buy"))), px[a], today)
+                if a in px: pf[k].buy(a, m, (cap / sum(x in px for x in assets) - cfg["costs"][m]["fixed_gbp"]) / (px[a] * (1 + pf[k].rate(m, "buy"))), px[a], today)
         st["bench0"] = {s: px[s] for s in cfg["benchmarks"].values() if s in px}
     # 1) execute orders decided on a previous day, at today's price (no look-ahead)
     for o in st["pending"]:
