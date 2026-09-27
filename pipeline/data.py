@@ -1,5 +1,9 @@
 """Free data collection. Every fetch returns None/[] on failure; the caller logs a gap (never interpolates)."""
-import csv, io, json, os, time, urllib.request
+import concurrent.futures as _cf, csv, io, json, os, time, urllib.request
+_POOL = _cf.ThreadPoolExecutor(max_workers=4)
+def _bounded(fn, seconds):  # runs fn with a hard wall-clock cutoff; a hung library can't block the whole run
+    try: return _POOL.submit(fn).result(timeout=seconds)
+    except _cf.TimeoutError: raise TimeoutError(f"no response within {seconds}s")
 def _get(url, headers=None):
     req = urllib.request.Request(url, headers={"User-Agent": "epq-research/0.1", **(headers or {})})
     return urllib.request.urlopen(req, timeout=30).read().decode()
@@ -15,20 +19,29 @@ def equity_history(t):  # ascending [(date, close, volume)]
         if out: return out
     except Exception: pass
     try:
-        import yfinance as yf
-        h = yf.Ticker(t).history(period="2y")
+        def _yf():
+            import yfinance as yf
+            return yf.Ticker(t).history(period="2y")
+        h = _bounded(_yf, 20)
         return [(i.strftime("%Y-%m-%d"), float(r.Close), float(r.Volume)) for i, r in h.iterrows()]
     except Exception: return []
 LAST_ERROR = ""
-def card_price(cid):  # TCGplayer market price via pokemontcg.io = GUIDE (not a completed sale)
-    global LAST_ERROR
+def _pokemontcg(cid):
     key = os.environ.get("POKEMONTCG_API_KEY", ""); hdr = {"X-Api-Key": key} if key else {}
-    for attempt in range(3):
-        try:
-            d = json.loads(_get(f"https://api.pokemontcg.io/v2/cards/{cid}", hdr))["data"]
-            for v, p in (d.get("tcgplayer", {}).get("prices") or {}).items():
-                if p.get("market"): return {"price_usd": p["market"], "variant": v, "price_type": "GUIDE", "source": "pokemontcg.io/tcgplayer", "as_of": d["tcgplayer"].get("updatedAt")}
-            LAST_ERROR = "card found but no TCGplayer market price"; return None
-        except Exception as e:
-            LAST_ERROR = f"{type(e).__name__} {str(e)[:50]}"; time.sleep(2)
-    return None
+    d = json.loads(_get(f"https://api.pokemontcg.io/v2/cards/{cid}", hdr))["data"]
+    for v, p in (d.get("tcgplayer", {}).get("prices") or {}).items():
+        if p.get("market"): return {"price_usd": p["market"], "variant": v, "price_type": "GUIDE", "source": "pokemontcg.io/tcgplayer", "as_of": d["tcgplayer"].get("updatedAt")}
+    raise ValueError("card found but no TCGplayer market price")
+def _tcgdex(cid):  # fallback: same "set-number" id scheme, free, no key
+    d = json.loads(_get(f"https://api.tcgdex.net/v2/en/cards/{cid}"))
+    for v, p in (d.get("pricing", {}).get("tcgplayer") or {}).items():
+        if isinstance(p, dict) and p.get("marketPrice"): return {"price_usd": p["marketPrice"], "variant": v, "price_type": "GUIDE", "source": "tcgdex.net/tcgplayer", "as_of": d.get("updated")}
+    raise ValueError("card found but no TCGplayer market price")
+def card_price(cid):  # GUIDE prices only (TCGplayer market price), never a completed sale
+    global LAST_ERROR
+    errs = []
+    for name, fn in (("pokemontcg.io", _pokemontcg), ("tcgdex.net", _tcgdex)):
+        for attempt in range(2):
+            try: return fn(cid)
+            except Exception as e: errs.append(f"{name}:{type(e).__name__} {str(e)[:40]}"); time.sleep(2)
+    LAST_ERROR = " | ".join(errs); return None

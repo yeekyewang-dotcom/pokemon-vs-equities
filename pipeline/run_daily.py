@@ -19,13 +19,17 @@ def main(root=".", src=live, today=None):
     if not fx: sys.exit("no FX rate: aborting run (nothing recorded)")
     gaps, hist, px, cap, R = [], {}, {}, cfg["capital_gbp"], cfg["rules"]
     for s in cfg["equities"] + list(cfg["benchmarks"].values()):
+        print(f"fetching equity {s}...", flush=True); t0 = now
         hh = src.equity_history(s)
+        print(f"  {s}: {'ok, ' + str(len(hh)) + ' rows' if hh else 'FAILED'} ({(dt.datetime.now(dt.timezone.utc) - t0).seconds}s)", flush=True)
         if hh:
             hist[s] = hh; px[s] = hh[-1][1] * fx
             store.append(P("prices.jsonl"), {"date": today, "asset": s, "market": "equity", "price": hh[-1][1], "ccy": "USD", "price_type": "CLOSE", "as_of": hh[-1][0], "source": "stooq/yfinance", "retrieved_at": now.isoformat()})
         else: gaps.append(f"no data: {s}")
     for cid in cfg["cards"]:
+        print(f"fetching card {cid}...", flush=True); t0 = now
         c = src.card_price(cid)
+        print(f"  {cid}: {'ok' if c else 'FAILED: ' + getattr(src, 'LAST_ERROR', '?')} ({(dt.datetime.now(dt.timezone.utc) - t0).seconds}s)", flush=True)
         if c:
             px[cid] = c["price_usd"] * fx
             store.append(P("prices.jsonl"), {"date": today, "asset": cid, "market": "card", "price": c["price_usd"], "ccy": "USD", "price_type": c["price_type"], "variant": c["variant"], "source": c["source"], "as_of": c["as_of"], "retrieved_at": now.isoformat()})
