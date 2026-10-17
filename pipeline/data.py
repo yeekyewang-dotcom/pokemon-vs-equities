@@ -1,6 +1,6 @@
 """Free data collection. Every fetch returns None/[] on failure; the caller logs a gap (never interpolates).
 Every per-asset fetch is hard-bounded (see _bounded): no single flaky source can ever stack up and blow the job's overall time limit, however badly it's failing."""
-import concurrent.futures as _cf, csv, io, json, os, time, urllib.request
+import concurrent.futures as _cf, csv, io, json, math, os, time, urllib.request
 _POOL = _cf.ThreadPoolExecutor(max_workers=8)
 def _bounded(fn, seconds):  # runs fn with a hard wall-clock cutoff; a hung/slow source can't block the whole run
     try: return _POOL.submit(fn).result(timeout=seconds)
@@ -16,7 +16,12 @@ def fx_usd_gbp():
 def _equity_history_inner(t):
     try:
         rows = list(csv.DictReader(io.StringIO(_get(f"https://stooq.com/q/d/l/?s={t.lower()}.us&i=d"))))
-        out = [(r["Date"], float(r["Close"]), float(r.get("Volume") or 0)) for r in rows if r.get("Close")]
+        out = []
+        for r in rows:
+            if not r.get("Close"): continue
+            try: c = float(r["Close"])
+            except ValueError: continue
+            if math.isfinite(c): out.append((r["Date"], c, float(r.get("Volume") or 0)))  # drop a NaN/inf row (a source glitch) rather than let it poison every downstream calculation
         if out: return out
     except Exception: pass
     try:

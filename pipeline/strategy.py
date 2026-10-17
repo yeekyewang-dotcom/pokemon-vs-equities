@@ -1,7 +1,8 @@
 """Indicators + 0-100 score. Pure functions of history up to 'now': no future data can enter."""
-import statistics as st
+import math, statistics as st
 def features(hist, lb):  # hist ascending [(date, price, volume)]
     s, l = lb
+    hist = [h for h in hist if math.isfinite(h[1])]  # a bad/missing-data day (NaN, inf from a source glitch) is treated as if it didn't happen, never silently fed into the maths
     if len(hist) < l + 1: return None
     p = [h[1] for h in hist]; r = [p[i] / p[i - 1] - 1 for i in range(len(p) - l, len(p))]
     return {"mom_s": p[-1] / p[-1 - s] - 1, "mom_l": p[-1] / p[-1 - l] - 1, "trend": p[-1] / (sum(p[-l:]) / l) - 1,
